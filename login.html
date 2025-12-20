@@ -465,7 +465,9 @@ body.dark-mode .theme-toggle {
             
             setTimeout(() => {
                 if (usuario === "deisy" && senha === "123") {
-                    // Sucesso
+                    // Sucesso - Marcar login como válido
+                    sessionStorage.setItem('loginValidado', 'true');
+                    
                     loginButton.innerHTML = '<i class="fas fa-check"></i> Acesso Concedido';
                     loginButton.style.background = '#2E7D32';
                     
