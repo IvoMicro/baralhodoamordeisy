@@ -39,6 +39,65 @@ body {
     transition: var(--transition);
 }
 
+/* VERIFICAÇÃO DE LOGIN - ESTILO DA MENSAGEM */
+.login-check-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #8B0000 0%, #5A0000 100%);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    font-family: 'Montserrat', sans-serif;
+    text-align: center;
+    padding: 20px;
+}
+
+.login-check-overlay.hidden {
+    display: none;
+}
+
+.login-check-content {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 40px;
+    border-radius: 20px;
+    max-width: 500px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.login-check-content h2 {
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+    color: #D4AF37;
+    font-family: 'Cormorant Garamond', serif;
+}
+
+.login-check-content p {
+    font-size: 1.1rem;
+    margin-bottom: 30px;
+    line-height: 1.6;
+}
+
+.login-check-content .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #D4AF37;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 /* Efeitos de partículas no fundo */
 .particles-background {
     position: fixed;
@@ -618,6 +677,35 @@ body {
     color: var(--accent);
 }
 
+/* Botão de Logout */
+.logout-btn {
+    position: fixed;
+    top: 25px;
+    left: 25px;
+    z-index: 100;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    transition: var(--transition);
+    font-size: 1.2rem;
+    color: var(--primary);
+    backdrop-filter: blur(10px);
+    animation: fadeIn 1s ease 1s both;
+}
+
+.logout-btn:hover {
+    transform: rotate(-15deg) scale(1.1);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    color: var(--accent);
+}
+
 /* Modal de configurações melhorado */
 .settings-modal {
     position: fixed;
@@ -833,6 +921,12 @@ body.dark-mode .theme-toggle {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+body.dark-mode .logout-btn {
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(30, 30, 30, 0.85) 100%);
+    color: var(--accent);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 body.dark-mode .settings-content {
     background: linear-gradient(135deg, rgba(40, 40, 40, 0.98) 0%, rgba(30, 30, 30, 0.95) 100%);
     color: #E0E0E0;
@@ -923,11 +1017,15 @@ body.dark-mode .settings-group select:focus {
         flex-direction: column;
     }
     
-    .theme-toggle {
+    .theme-toggle, .logout-btn {
         top: 20px;
         right: 20px;
         width: 45px;
         height: 45px;
+    }
+    
+    .logout-btn {
+        left: 20px;
     }
     
     .quick-stats {
@@ -970,6 +1068,15 @@ body.dark-mode .settings-group select:focus {
 </style>
 </head>
 <body>
+    <!-- Verificação de Login (aparece primeiro) -->
+    <div class="login-check-overlay" id="loginCheck">
+        <div class="login-check-content">
+            <h2>Verificando Acesso...</h2>
+            <div class="loading-spinner"></div>
+            <p>Por favor, aguarde enquanto verificamos sua autenticação.</p>
+        </div>
+    </div>
+    
     <!-- Efeito de brilho pulsante -->
     <div class="glow-effect"></div>
     
@@ -980,6 +1087,11 @@ body.dark-mode .settings-group select:focus {
         <div class="particle"></div>
         <div class="particle"></div>
     </div>
+    
+    <!-- Botão de Logout -->
+    <button class="logout-btn" id="logoutBtn" title="Sair do Jogo">
+        <i class="fas fa-sign-out-alt"></i>
+    </button>
     
     <!-- Botão de tema -->
     <button class="theme-toggle" id="themeToggle">
@@ -1036,8 +1148,8 @@ body.dark-mode .settings-group select:focus {
         <span id="toastText">Configurações aplicadas com sucesso!</span>
     </div>
     
-    <!-- Container principal -->
-    <div class="game-container">
+    <!-- Container principal (aparece após verificação) -->
+    <div class="game-container" id="gameContainer" style="display: none;">
         <!-- Header -->
         <header class="game-header">
             <div class="header-content">
@@ -1144,8 +1256,67 @@ body.dark-mode .settings-group select:focus {
     </audio>
 
     <script>
+        // ============================================
+        // VERIFICAÇÃO DE LOGIN (EXECUTA PRIMEIRO)
+        // ============================================
+        
+        // Aguardar o DOM carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginCheck = document.getElementById('loginCheck');
+            const gameContainer = document.getElementById('gameContainer');
+            
+            // Verificar se o login foi validado
+            function verificarLogin() {
+                const loginValidado = sessionStorage.getItem('loginValidado');
+                
+                if (loginValidado === 'true') {
+                    // Login válido - esconder overlay e mostrar jogo
+                    setTimeout(() => {
+                        loginCheck.classList.add('hidden');
+                        gameContainer.style.display = 'flex';
+                        initGame(); // Inicializar o jogo
+                    }, 800);
+                } else {
+                    // Login inválido - redirecionar para página inicial
+                    setTimeout(() => {
+                        loginCheck.innerHTML = `
+                            <div class="login-check-content">
+                                <h2>Acesso Não Autorizado</h2>
+                                <p>Você precisa fazer login para acessar esta página.</p>
+                                <p>Redirecionando para a página inicial...</p>
+                            </div>
+                        `;
+                        
+                        setTimeout(() => {
+                            window.location.href = 'https://ivomicro.github.io/baralhodoamordeisy/';
+                        }, 2000);
+                    }, 1000);
+                }
+            }
+            
+            // Executar verificação após breve delay para efeito visual
+            setTimeout(verificarLogin, 500);
+        });
+        
+        // ============================================
+        // FUNÇÃO DE LOGOUT
+        // ============================================
+        
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            // Limpar sessão
+            sessionStorage.removeItem('loginValidado');
+            
+            // Mostrar mensagem
+            showToast("Saindo do jogo...");
+            
+            // Redirecionar após breve delay
+            setTimeout(() => {
+                window.location.href = 'https://ivomicro.github.io/baralhodoamordeisy/';
+            }, 1000);
+        });
+        
         // =====================
-        // DADOS - 50 CARTAS (mantidas exatamente iguais)
+        // DADOS - 50 CARTAS
         // =====================
         const LOVE_CARDS = [
             "Qual foi o momento mais feliz que você já teve comigo?",
@@ -1481,6 +1652,48 @@ body.dark-mode .settings-group select:focus {
         // =====================
         // FUNÇÕES DE INTERFACE
         // =====================
+        function initGame() {
+            game.initialize();
+            loadTheme();
+            
+            setInterval(() => game.updateDisplay(), 1000);
+            
+            // Configura teclas de atalho
+            document.addEventListener('keydown', (e) => {
+                switch(e.code) {
+                    case 'ArrowRight':
+                    case 'Space':
+                        e.preventDefault();
+                        drawCard('next');
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        previousCard();
+                        break;
+                    case 'KeyS':
+                        e.preventDefault();
+                        skipCard();
+                        break;
+                    case 'KeyF':
+                        e.preventDefault();
+                        toggleFaithMode();
+                        break;
+                    case 'KeyC':
+                        e.preventDefault();
+                        openSettings();
+                        break;
+                    case 'Escape':
+                        closeSettings();
+                        break;
+                }
+            });
+            
+            // Efeito de boas-vindas
+            setTimeout(() => {
+                showToast("Bem-vindo ao Baralho do Amor! Toque na carta para começar.");
+            }, 1500);
+        }
+
         function drawCard(action = 'next') {
             playSound('cardSound');
             
@@ -1673,55 +1886,8 @@ body.dark-mode .settings-group select:focus {
         }
 
         // =====================
-        // INICIALIZAÇÃO
-        // =====================
-        function init() {
-            game.initialize();
-            loadTheme();
-            
-            setInterval(() => game.updateDisplay(), 1000);
-            
-            // Configura teclas de atalho
-            document.addEventListener('keydown', (e) => {
-                switch(e.code) {
-                    case 'ArrowRight':
-                    case 'Space':
-                        e.preventDefault();
-                        drawCard('next');
-                        break;
-                    case 'ArrowLeft':
-                        e.preventDefault();
-                        previousCard();
-                        break;
-                    case 'KeyS':
-                        e.preventDefault();
-                        skipCard();
-                        break;
-                    case 'KeyF':
-                        e.preventDefault();
-                        toggleFaithMode();
-                        break;
-                    case 'KeyC':
-                        e.preventDefault();
-                        openSettings();
-                        break;
-                    case 'Escape':
-                        closeSettings();
-                        break;
-                }
-            });
-            
-            // Efeito de boas-vindas
-            setTimeout(() => {
-                showToast("Bem-vindo ao Baralho do Amor! Toque na carta para começar.");
-            }, 1500);
-        }
-
-        // =====================
         // EVENT LISTENERS
         // =====================
-        window.addEventListener('DOMContentLoaded', init);
-        
         themeToggle.addEventListener('click', toggleTheme);
         
         document.getElementById('closeSettings').addEventListener('click', closeSettings);
